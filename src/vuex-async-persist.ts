@@ -1,104 +1,173 @@
-import { Store, CommitOptions, Commit, MutationPayload } from "vuex";
-import {set, get, del, clear, Store as IdbStore} from 'idb-keyval'
+import { Store, CommitOptions } from 'vuex';
+import { StorageOption, CommitData, Options } from './types';
+import { set, get, del, clear, Store as IdbStore } from 'idb-keyval';
+import dot from 'dot-object';
+import merge from 'deepmerge';
 
-interface StorageOption {
-    get: <Type>(key: string) => Promise<Type>;
-    set: (key: string, value: any) => Promise<void>;
-    delete: (key: string) => Promise<void>;
-    clear: (key: string) => Promise<void>;
+const DEFAULT_DATABASE_NAME = 'vuex-async-persist';
+
+const CREATE_DEFAULT_STORAGE = (): StorageOption => {
+  const idbStore = new IdbStore(DEFAULT_DATABASE_NAME, DEFAULT_DATABASE_NAME);
+  return {
+    get: (key) => get(key, idbStore),
+    set: (key, value) => set(key, value, idbStore),
+    delete: (key) => del(key, idbStore),
+    clear: (key) => clear(idbStore),
+  };
+};
+
+const CREATE_DEFAULT_OPTIONS = (): Options => ({
+  idbDatabaseName: DEFAULT_DATABASE_NAME,
+  idbStoreName: DEFAULT_DATABASE_NAME,
+  storage: CREATE_DEFAULT_STORAGE(),
+  localStorageKey: 'vuex-persist-localStorage',
+  key: 'async-persist',
+  mutationsToIgnore: [],
+  updateInterval: 50,
+  overwriteOnKeyChange: true,
+});
+
+let pluginOptions: Options = CREATE_DEFAULT_OPTIONS();
+let onKeyChange: Function;
+
+function _setOptions(options: Options, dynamic?: boolean) {
+  if (dynamic && options.key) {
+    pluginOptions.key = options.key;
+    if (typeof onKeyChange === 'function') onKeyChange();
+  } else {
+    Object.keys(options).forEach((key) => (pluginOptions[key] = options[key]));
+  }
 }
 
-interface Test {
-    string,
-    number,
-    StorageOption,
-}
+function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>) => void {
+  if (options) _setOptions(options);
 
-interface Options {
-    key?: string;
-    localStorageKey?: string;
-    paths?: string[];
-    storage?: StorageOption;
-    idbStoreName?: string;
-    idbDatabaseName?: string;
-    mutationsToIgnore?: string[];
-    updateInterval?: number;
-}
+  const localStorage: Storage = window.localStorage;
+  const commitQueue: CommitData[] = [];
+  const storeIsUpdating = [];
+  let vuexStore: Store<State> = null;
 
+  function mergeStates(state) {
+    return merge(vuexStore.state, state, {
+      arrayMerge:
+        pluginOptions.arrayMerge ||
+        function (stored, saved) {
+          return saved;
+        },
+    });
+  }
 
-function createVuexAsyncPersist<State>(
-    options?: Options
-  ): (store: Store<State>) => void {
-    options = options || {};
+  function localStorageKey(): string {
+    return `${pluginOptions.localStorageKey}-${pluginOptions.key}`;
+  }
 
-    let storage: StorageOption;
+  function replaceCurrentState(state) {
+    vuexStore.replaceState(pluginOptions.overwrite ? state : mergeStates(state));
+  }
 
-    if (options.storage) storage = options.storage;
-    else {
-        const idbStoreName: string = options.idbStoreName || 'vuex-async-persist';
-        const idbDatabaseName: string = options.idbDatabaseName || 'vuex-async-persist';
-        const idbStore = new IdbStore(idbStoreName, idbDatabaseName);
-
-        storage = {
-            get: (key) => get(key, idbStore),
-            set: (key, value) => set(key, value, idbStore),
-            delete: (key) => del(key, idbStore),
-            clear: (key) => clear(idbStore)
+  function handleStoreUpdate(state: State) {
+    const stateToPersist = Array.isArray(pluginOptions.paths)
+      ? {
+          ...pluginOptions.paths.reduce((acc, path) => {
+            dot.copy(path, path, state, acc);
+            return acc;
+          }, {}),
         }
+      : { ...state };
+
+    // Notify other tabs, that there will be changes
+    const lSKey = localStorageKey();
+    localStorage.setItem(lSKey, 'false');
+    pluginOptions.storage.set(pluginOptions.key, stateToPersist).finally(() => {
+      //Notify other tabs that update finished
+      localStorage.setItem(lSKey, 'true');
+    });
+  }
+
+  function handleLocalStorageChange(event?: StorageEvent) {
+    // Only to verify notification. True if update finished, false if updating
+    const localStorageValue = localStorage.getItem(localStorageKey());
+    if (
+      !event ||
+      (typeof localStorageValue !== undefined && event.key === localStorageKey() && vuexStore)
+    ) {
+      if (localStorageValue == 'true' || !event) {
+        pluginOptions.storage
+          .get(pluginOptions.key)
+          .then((res: State) => {
+            if (res !== undefined) replaceCurrentState(res);
+            applyQueuedCommits();
+          })
+          .finally(() => {
+            storeIsUpdating.pop();
+          });
+      } else storeIsUpdating.push(true);
     }
-    
-    // consistant 
-    const localStorageKey: string = options.localStorageKey || 'vuex-localStorage';
-    //will be changeable
-    const key: string = options.key || 'async-persist';
-    
-    const mutationsToIgnore = options.mutationsToIgnore || [];
-    const localStorage: Storage = window.localStorage;
+  }
 
-
-
-    function handleStoreUpdate() {
-        //handleSet
-        localStorage.setItem(`${localStorageKey}-${key}`, new Date().getTime().toString());
-    }
-
-    function handleLocalStorageUpdate(event) {
-        localStorage.getItem(`${localStorageKey}-${key}`);
-        if (event.key === `${localStorageKey}-${key}`) {
-            console.log("update!!!");
-        }
-    }
-
-    function addLocalStorageListener(callback): Function {
-        window.addEventListener('storage', callback)
-        window.addEventListener('beforeunload', () => {
-          window.removeEventListener('storage', callback);
-        });
-
-        return () => {
-            window.removeEventListener('storage', callback);
-        }
-    }
-
-    return (store: Store<State>) => {
-        const oldCommit = store.commit;
-
-        //overwrite old vuex's default commit
-        store.commit =  (type: string, payload?: any, options?: CommitOptions): void => {
-            return oldCommit(type, payload, options)
-        }
-
-        addLocalStorageListener(handleLocalStorageUpdate);
-
-        let timeout: number;
-        store.subscribe((mutation, state)=> {
-            if (mutationsToIgnore.every((val) => mutation.type.indexOf(val) === -1)) {
-                clearTimeout(timeout)
-                timeout = setTimeout(handleStoreUpdate, options.updateInterval || 100)
-            }
-        });
+  function addLocalStorageListener(callback): Function {
+    window.addEventListener('storage', callback);
+    const removeListener: Function = () => {
+      window.removeEventListener('storage', callback);
     };
+    window.addEventListener('beforeunload', () => {
+      removeListener();
+    });
+
+    return removeListener;
+  }
+
+  function applyQueuedCommits() {
+    if (vuexStore) {
+      commitQueue.splice(0).forEach((ele) => {
+        vuexStore.commit(ele);
+      });
+    }
+  }
+
+  return (store: Store<State>) => {
+    const oldCommit = store.commit;
+    vuexStore = store;
+
+    // Fetch data initially
+    handleLocalStorageChange();
+
+    onKeyChange = () => {
+      if (
+        localStorage.getItem(localStorageKey()) === undefined ||
+        pluginOptions.overwriteOnKeyChange
+      )
+        handleStoreUpdate(store.state);
+      else handleLocalStorageChange();
+    };
+
+    addLocalStorageListener(handleLocalStorageChange);
+
+    //overwrite old vuex's default commit
+    store.commit = (type: string, payload?: any, options?: CommitOptions): void => {
+      if (storeIsUpdating.length > 0) commitQueue.push({ type, payload, options });
+      else return oldCommit(type, payload, options);
+    };
+
+    let timeout: number;
+    store.subscribe((mutation, state) => {
+      const ignoreMutation =
+        pluginOptions.mutationsToIgnore.findIndex((val) =>
+          mutation.type.toLowerCase().includes(val.toLowerCase())
+        ) !== -1;
+
+      if (!ignoreMutation) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          handleStoreUpdate(state);
+        }, pluginOptions.updateInterval);
+      }
+    });
+  };
+}
+
+export function setOptions(options: Options) {
+  _setOptions(options, true);
 }
 
 export default createVuexAsyncPersist;
-  

@@ -1,5 +1,18 @@
 {
-    "include": [
-        "src/**/*"
-    ]
+    "compileOnSave": false,
+    "compilerOptions": {
+      "baseUrl": "./",
+      "outDir": "./dist",
+      "sourceMap": true,
+      "declaration": false,
+      "moduleResolution": "node",
+      "emitDecoratorMetadata": true,
+      "experimentalDecorators": true,
+      "target": "es2018",
+      "lib": [      
+        "es2018",
+        "dom"
+      ]
+    },
+    "allowSyntheticDefaultImports": true
 }

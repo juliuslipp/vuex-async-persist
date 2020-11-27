@@ -1,40 +1,50 @@
 {
   "name": "vuex-async-persist",
-  "version": "1.0.0",
-  "description": "Persist your Vuex state between page reloads asynchronous",
+  "version": "0.1.0",
+  "description": "Persist small to large Vuex states between tabs and page reloads asynchronously.",
+  "author": "Juliua Lipp <julius.lipp@yahoo.com> (juliuslipp.com)",
+  "license": "MIT",
   "main": "dist/vuex-async-persist.js",
+  "types": "src/types.ts",
+  "source": "src/vuex-async-persist.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "parcel build src/vuex-async-persist.ts"
   },
-  "types": "src/vuex-async-persist.ts",
   "repository": {
     "type": "git",
     "url": "https://gitlab.com/juliuslipp/vuex-asnyc-persist"
   },
+  "files": [
+    "dist",
+    "src"
+  ],
   "keywords": [
     "vuex",
-    "vue"
+    "vue",
+    "plugin",
+    "persist-state",
+    "asynchronous"
   ],
-  "author": "JL",
-  "license": "MIT",
   "bugs": {
     "url": "https://gitlab.com/juliuslipp/vuex-asnyc-persist/issues"
   },
   "homepage": "https://gitlab.com/juliuslipp/vuex-asnyc-persist#readme",
   "dependencies": {
-    "eslint-config-prettier": "^6.15.0",
-    "idb-keyval": "^3.2.0",
-    "vuex": "^3.6.0"
+    "deepmerge": "^4.2.2",
+    "dot-object": "^2.1.4",
+    "idb-keyval": "^3.2.0"
   },
   "devDependencies": {
     "babel": "^6.23.0",
     "eslint": "^7.2.0",
     "eslint-config-airbnb": "^18.2.1",
+    "eslint-config-prettier": "^6.15.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-prettier": "^3.1.4",
     "parcel": "^1.12.4",
     "prettier": "^2.2.0",
-    "typescript": "^4.1.2"
+    "typescript": "^4.1.2",
+    "vuex": "^3.6.0"
   }
 }
