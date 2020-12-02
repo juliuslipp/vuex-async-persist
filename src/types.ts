@@ -14,8 +14,8 @@ export interface CommitData {
 }
 
 export interface Options {
-  key?: string;
-  localStorageKey?: string;
+  key?: string; // Key used to store in Database
+  localStoragePrefix?: string;
   paths?: string[];
   storage?: StorageOption;
   idbStoreName?: string;
@@ -23,6 +23,5 @@ export interface Options {
   mutationsToIgnore?: string[];
   updateInterval?: number;
   overwrite?: boolean;
-  arrayMerge?: Function;
-  overwriteOnKeyChange?: boolean;
+  onStateReplacement?: Function;
 }

@@ -1,6 +1,6 @@
 import { Store, CommitOptions } from 'vuex';
 import { StorageOption, CommitData, Options } from './types';
-import { set, get, del, clear, Store as IdbStore } from 'idb-keyval';
+import { set, get, del, clear, Store as IdbStore, keys } from 'idb-keyval';
 import dot from 'dot-object';
 import merge from 'deepmerge';
 
@@ -20,20 +20,25 @@ const CREATE_DEFAULT_OPTIONS = (): Options => ({
   idbDatabaseName: DEFAULT_DATABASE_NAME,
   idbStoreName: DEFAULT_DATABASE_NAME,
   storage: CREATE_DEFAULT_STORAGE(),
-  localStorageKey: 'vuex-persist-localStorage',
+  localStoragePrefix: 'vuex-persist-localStorage',
   key: 'async-persist',
   mutationsToIgnore: [],
-  updateInterval: 50,
-  overwriteOnKeyChange: true,
+  updateInterval: 10,
+  overwrite: true,
 });
 
 let pluginOptions: Options = CREATE_DEFAULT_OPTIONS();
-let onKeyChange: Function;
+let _onKeyChange: Function;
 
-function _setOptions(options: Options, dynamic?: boolean) {
+function _setOptions(options: Options, dynamic?: boolean, fetchFirst?: boolean) {
   if (dynamic && options.key) {
-    pluginOptions.key = options.key;
-    if (typeof onKeyChange === 'function') onKeyChange();
+    if (pluginOptions.key !== options.key) {
+      pluginOptions.key = options.key;
+      _onKeyChange(fetchFirst);
+    }
+    if (options.onStateReplacement) {
+      pluginOptions.onStateReplacement = options.onStateReplacement;
+    }
   } else {
     Object.keys(options).forEach((key) => (pluginOptions[key] = options[key]));
   }
@@ -49,20 +54,26 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
 
   function mergeStates(state) {
     return merge(vuexStore.state, state, {
-      arrayMerge:
-        pluginOptions.arrayMerge ||
-        function (stored, saved) {
-          return saved;
-        },
+      arrayMerge: function (stored, saved) {
+        return saved;
+      },
     });
   }
 
   function localStorageKey(): string {
-    return `${pluginOptions.localStorageKey}-${pluginOptions.key}`;
+    return `${pluginOptions.localStoragePrefix}-${pluginOptions.key}`;
   }
 
   function replaceCurrentState(state) {
+    if (pluginOptions.overwrite && Array.isArray(pluginOptions.paths)) {
+      const copiedState = { ...vuexStore.state };
+      pluginOptions.paths.forEach((path) => {
+        if (state[path]) copiedState[path] = state[path];
+      });
+      state = copiedState;
+    }
     vuexStore.replaceState(pluginOptions.overwrite ? state : mergeStates(state));
+    if (typeof pluginOptions.onStateReplacement == 'function') pluginOptions.onStateReplacement();
   }
 
   function handleStoreUpdate(state: State) {
@@ -132,11 +143,8 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
     // Fetch data initially
     handleLocalStorageChange();
 
-    onKeyChange = () => {
-      if (
-        localStorage.getItem(localStorageKey()) === undefined ||
-        pluginOptions.overwriteOnKeyChange
-      )
+    _onKeyChange = (fetchFirst) => {
+      if (localStorage.getItem(localStorageKey()) === undefined || !fetchFirst)
         handleStoreUpdate(store.state);
       else handleLocalStorageChange();
     };
@@ -149,7 +157,7 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
       else return oldCommit(type, payload, options);
     };
 
-    let timeout: number;
+    let timeout;
     store.subscribe((mutation, state) => {
       const ignoreMutation =
         pluginOptions.mutationsToIgnore.findIndex((val) =>
@@ -166,8 +174,8 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
   };
 }
 
-export function setOptions(options: Options) {
-  _setOptions(options, true);
+export function setOptions(options: Options, fetchFirst?: boolean) {
+  _setOptions(options, true, fetchFirst);
 }
 
 export default createVuexAsyncPersist;
