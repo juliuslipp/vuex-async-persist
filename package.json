@@ -1,6 +1,6 @@
 {
   "name": "vuex-async-persist",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Persist small to large Vuex states between tabs and page reloads asynchronously.",
   "author": "Julius Lipp <julius.lipp@yahoo.com> (juliuslipp.com)",
   "license": "MIT",
