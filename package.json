@@ -33,7 +33,7 @@
   "dependencies": {
     "deepmerge": "^4.2.2",
     "dot-object": "^2.1.4",
-    "idb-keyval": "^3.2.0"
+    "idb-keyval": "^5.0.4"
   },
   "devDependencies": {
     "babel": "^6.23.0",

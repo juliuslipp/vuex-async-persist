@@ -1,18 +1,19 @@
 import { Store, CommitOptions } from 'vuex';
-import { StorageOption, CommitData, Options } from './types';
-import { set, get, del, clear, Store as IdbStore, keys } from 'idb-keyval';
+import { StorageOptions, CommitData, Options } from './types';
+import { set, get, del, clear, createStore, keys } from 'idb-keyval';
 import dot from 'dot-object';
 import merge from 'deepmerge';
 
 const DEFAULT_DATABASE_NAME = 'vuex-async-persist';
 
-const CREATE_DEFAULT_STORAGE = (): StorageOption => {
-  const idbStore = new IdbStore(DEFAULT_DATABASE_NAME, DEFAULT_DATABASE_NAME);
+const CREATE_DEFAULT_STORAGE = (): StorageOptions => {
+  const idbStore = createStore(DEFAULT_DATABASE_NAME, DEFAULT_DATABASE_NAME);
   return {
     get: (key) => get(key, idbStore),
     set: (key, value) => set(key, value, idbStore),
     delete: (key) => del(key, idbStore),
-    clear: (key) => clear(idbStore),
+    clear: () => clear(idbStore),
+    keys: () => keys(idbStore),
   };
 };
 
@@ -44,6 +45,10 @@ function _setOptions(options: Options, dynamic?: boolean, fetchFirst?: boolean) 
   }
 }
 
+function localStorageKey(): string {
+  return `${pluginOptions.localStoragePrefix}-${pluginOptions.key}`;
+}
+
 function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>) => void {
   if (options) _setOptions(options);
 
@@ -58,10 +63,6 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
         return saved;
       },
     });
-  }
-
-  function localStorageKey(): string {
-    return `${pluginOptions.localStoragePrefix}-${pluginOptions.key}`;
   }
 
   function replaceCurrentState(state) {
@@ -176,6 +177,18 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
 
 export function setOptions(options: Options, fetchFirst?: boolean) {
   _setOptions(options, true, fetchFirst);
+}
+
+export function deleteStorageEntries(keysToPersist?: IDBValidKey[]) {
+  return pluginOptions.storage.keys();
+}
+
+export function deleteStorageEntriesByKeys(keysToDelete: IDBValidKey[]): Promise<void[]> {
+  return Promise.all(keysToDelete.map((key) => pluginOptions.storage.delete(key)));
+}
+
+export function clearStorage(): Promise<void> {
+  return pluginOptions.storage.clear();
 }
 
 export default createVuexAsyncPersist;
