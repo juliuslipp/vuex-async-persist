@@ -45,8 +45,8 @@ function _setOptions(options: Options, dynamic?: boolean, fetchFirst?: boolean) 
   }
 }
 
-function localStorageKey(): string {
-  return `${pluginOptions.localStoragePrefix}-${pluginOptions.key}`;
+function localStorageKey(key: IDBValidKey): string {
+  return `${pluginOptions.localStoragePrefix}-${key}`;
 }
 
 function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>) => void {
@@ -88,7 +88,7 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
       : { ...state };
 
     // Notify other tabs, that there will be changes
-    const lSKey = localStorageKey();
+    const lSKey = localStorageKey(pluginOptions.key);
     localStorage.setItem(lSKey, 'false');
     pluginOptions.storage.set(pluginOptions.key, stateToPersist).finally(() => {
       //Notify other tabs that update finished
@@ -98,10 +98,12 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
 
   function handleLocalStorageChange(event?: StorageEvent) {
     // Only to verify notification. True if update finished, false if updating
-    const localStorageValue = localStorage.getItem(localStorageKey());
+    const localStorageValue = localStorage.getItem(localStorageKey(pluginOptions.key));
     if (
       !event ||
-      (typeof localStorageValue !== undefined && event.key === localStorageKey() && vuexStore)
+      (typeof localStorageValue !== undefined &&
+        event.key === localStorageKey(pluginOptions.key) &&
+        vuexStore)
     ) {
       if (localStorageValue == 'true' || !event) {
         pluginOptions.storage
@@ -145,7 +147,7 @@ function createVuexAsyncPersist<State>(options?: Options): (store: Store<State>)
     handleLocalStorageChange();
 
     _onKeyChange = (fetchFirst) => {
-      if (localStorage.getItem(localStorageKey()) === undefined || !fetchFirst)
+      if (localStorage.getItem(localStorageKey(pluginOptions.key)) === undefined || !fetchFirst)
         handleStoreUpdate(store.state);
       else handleLocalStorageChange();
     };
@@ -179,11 +181,27 @@ export function setOptions(options: Options, fetchFirst?: boolean) {
   _setOptions(options, true, fetchFirst);
 }
 
-export function deleteStorageEntries(keysToPersist?: IDBValidKey[]) {
-  return pluginOptions.storage.keys();
+export async function deleteStorageEntries(keysToPersist: IDBValidKey[] = []) {
+  return Promise.all(
+    (await pluginOptions.storage.keys())
+      .reduce<IDBValidKey[]>((acc, key) => {
+        const idx = keysToPersist.indexOf(key);
+        if (idx > -1) {
+          keysToPersist.splice(idx, 1);
+          return acc;
+        }
+        acc.push(key);
+        return acc;
+      }, [])
+      .map((key) => {
+        localStorage.removeItem(localStorageKey(key));
+        return pluginOptions.storage.delete(key);
+      })
+  );
 }
 
 export function deleteStorageEntriesByKeys(keysToDelete: IDBValidKey[]): Promise<void[]> {
+  keysToDelete.forEach((key) => localStorage.removeItem(localStorageKey(key)));
   return Promise.all(keysToDelete.map((key) => pluginOptions.storage.delete(key)));
 }
 
