@@ -9,7 +9,7 @@
   "source": "src/vuex-async-persist.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "parcel build src/vuex-async-persist.ts"
+    "build": "webpack"
   },
   "repository": {
     "type": "git",
@@ -42,12 +42,12 @@
     "eslint-config-prettier": "^6.15.0",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-prettier": "^3.1.4",
-    "parcel": "^1.12.3",
+    "path": "^0.12.7",
     "prettier": "^2.2.0",
-    "ts-loader": "^8.0.11",
-    "typescript": "^4.1.2",
+    "ts-loader": "^8.0.18",
+    "typescript": "^4.2.3",
     "vuex": "^3.6.0",
-    "webpack": "^5.9.0",
+    "webpack": "^5.25.0",
     "webpack-cli": "^4.2.0"
   }
 }
