@@ -27,9 +27,9 @@
     "asynchronous"
   ],
   "bugs": {
-    "url": "https://gitlab.com/juliuslipp/vuex-asnyc-persist/issues"
+    "url": "https://github.com/juliuslipp/vuex-async-persist/issues"
   },
-  "homepage": "https://gitlab.com/juliuslipp/vuex-asnyc-persist#readme",
+  "homepage": "https://github.com/juliuslipp/vuex-async-persist",
   "dependencies": {
     "deepmerge": "^4.2.2",
     "dot-object": "^2.1.4",
